@@ -14,9 +14,10 @@ import json
 class ActivationExtractor:
     """Extract hidden state activations from transformer layers."""
     
-    def __init__(self, model_name: str = "gpt2", device: str = "auto"):
+    def __init__(self, model_name: str = "gpt2", device: str = "auto", model_type: str = "trained"):
         self.device = self._get_device(device)
         self.model_name = model_name
+        self.model_type = model_type  # "trained" or "untrained"
         self.model = None
         self.tokenizer = None
         self.hooks = []
@@ -36,25 +37,50 @@ class ActivationExtractor:
     
     def _load_model(self):
         """Load the transformer model and tokenizer."""
-        print(f"Loading model: {self.model_name}")
+        print(f"Loading {self.model_type} model: {self.model_name}")
         print(f"Using device: {self.device}")
         
-        if self.model_name == "gpt2":
-            self.model = GPT2LMHeadModel.from_pretrained("gpt2")
-            self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-        elif self.model_name == "gpt2-medium":
-            self.model = GPT2LMHeadModel.from_pretrained("gpt2-medium")
-            self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-medium")
-        elif self.model_name == "gpt2-large":
-            self.model = GPT2LMHeadModel.from_pretrained("gpt2-large")
-            self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-large")
-        elif self.model_name == "gpt2-xl":
-            self.model = GPT2LMHeadModel.from_pretrained("gpt2-xl")
-            self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-xl")
+        if self.model_type == "trained":
+            # Load pre-trained model
+            if self.model_name == "gpt2":
+                self.model = GPT2LMHeadModel.from_pretrained("gpt2")
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+            elif self.model_name == "gpt2-medium":
+                self.model = GPT2LMHeadModel.from_pretrained("gpt2-medium")
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-medium")
+            elif self.model_name == "gpt2-large":
+                self.model = GPT2LMHeadModel.from_pretrained("gpt2-large")
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-large")
+            elif self.model_name == "gpt2-xl":
+                self.model = GPT2LMHeadModel.from_pretrained("gpt2-xl")
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-xl")
+            else:
+                # For other models, try AutoModel
+                self.model = AutoModel.from_pretrained(self.model_name)
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         else:
-            # For other models, try AutoModel
-            self.model = AutoModel.from_pretrained(self.model_name)
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            # Load untrained model (random weights)
+            if self.model_name == "gpt2":
+                config = GPT2Config.from_pretrained("gpt2")
+                self.model = GPT2LMHeadModel(config)
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+            elif self.model_name == "gpt2-medium":
+                config = GPT2Config.from_pretrained("gpt2-medium")
+                self.model = GPT2LMHeadModel(config)
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-medium")
+            elif self.model_name == "gpt2-large":
+                config = GPT2Config.from_pretrained("gpt2-large")
+                self.model = GPT2LMHeadModel(config)
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-large")
+            elif self.model_name == "gpt2-xl":
+                config = GPT2Config.from_pretrained("gpt2-xl")
+                self.model = GPT2LMHeadModel(config)
+                self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2-xl")
+            else:
+                # For other models
+                config = AutoModel.from_pretrained(self.model_name).config
+                self.model = AutoModel.from_config(config)
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         
         # Add padding token if not present
         if self.tokenizer.pad_token is None:
@@ -63,7 +89,7 @@ class ActivationExtractor:
         self.model.to(self.device)
         self.model.eval()
         
-        print(f"Model loaded with {self.model.config.num_hidden_layers} layers")
+        print(f"{self.model_type.capitalize()} model loaded with {self.model.config.num_hidden_layers} layers")
         print(f"Hidden size: {self.model.config.hidden_size}")
         print(f"Total parameters: {sum(p.numel() for p in self.model.parameters()):,}")
     
@@ -112,7 +138,7 @@ class ActivationExtractor:
         """Extract activations for a batch of input texts."""
         all_activations = {}
         
-        for text in tqdm(input_texts, desc="Extracting activations"):
+        for text in tqdm(input_texts, desc=f"Extracting activations ({self.model_type})"):
             activations = self.extract_activations(text)
             
             # Concatenate activations across batch
@@ -168,6 +194,158 @@ class ActivationExtractor:
         for hook in self.hooks:
             hook.remove()
         self.hooks = []
+
+class ModelComparison:
+    """Compare trained vs untrained models for geometric transformation analysis."""
+    
+    def __init__(self, model_name: str = "gpt2", device: str = "auto"):
+        self.model_name = model_name
+        self.device = self._get_device(device)
+        self.trained_extractor = None
+        self.untrained_extractor = None
+        
+    def _get_device(self, device: str) -> str:
+        """Determine the best device to use."""
+        if device == "auto":
+            if torch.cuda.is_available():
+                return "cuda"
+            else:
+                return "cpu"
+        return device
+    
+    def setup_models(self):
+        """Setup both trained and untrained models."""
+        print("Setting up trained and untrained models for comparison...")
+        
+        # Load trained model
+        self.trained_extractor = ActivationExtractor(
+            model_name=self.model_name,
+            device=self.device,
+            model_type="trained"
+        )
+        
+        # Load untrained model
+        self.untrained_extractor = ActivationExtractor(
+            model_name=self.model_name,
+            device=self.device,
+            model_type="untrained"
+        )
+        
+        print("Both models loaded successfully!")
+    
+    def extract_comparison_activations(self, input_texts: List[str]) -> Dict[str, Dict[str, torch.Tensor]]:
+        """Extract activations from both models using the same input texts."""
+        print("Extracting activations from both models...")
+        
+        # Extract from trained model
+        trained_activations = self.trained_extractor.extract_activations_batch(input_texts)
+        
+        # Extract from untrained model
+        untrained_activations = self.untrained_extractor.extract_activations_batch(input_texts)
+        
+        return {
+            "trained": trained_activations,
+            "untrained": untrained_activations
+        }
+    
+    def compare_geometric_transformations(self, activations: Dict[str, Dict[str, torch.Tensor]]) -> Dict:
+        """Compare geometric transformations between trained and untrained models."""
+        from ot_analysis import OTAnalyzer
+        
+        print("Comparing geometric transformations...")
+        
+        ot_analyzer = OTAnalyzer(method="sinkhorn", normalize=True)
+        
+        # Prepare representations for both models
+        trained_reps = self._prepare_layer_representations(activations["trained"])
+        untrained_reps = self._prepare_layer_representations(activations["untrained"])
+        
+        # Analyze both models
+        trained_analysis = ot_analyzer.analyze_representation_flow(trained_reps)
+        untrained_analysis = ot_analyzer.analyze_representation_flow(untrained_reps)
+        
+        # Compare results
+        comparison = {
+            "trained": trained_analysis,
+            "untrained": untrained_analysis,
+            "differences": self._compute_differences(trained_analysis, untrained_analysis)
+        }
+        
+        return comparison
+    
+    def _prepare_layer_representations(self, activations: Dict[str, torch.Tensor]) -> List[np.ndarray]:
+        """Prepare layer representations for OT analysis."""
+        layer_reps = []
+        
+        # Get all layer representations in order
+        num_layers = len(activations)
+        for i in range(num_layers):
+            layer_name = f"layer_{i}"
+            if layer_name in activations:
+                reps = activations[layer_name]
+                
+                # Convert to numpy and reshape
+                reps_np = reps.numpy()
+                batch_size, seq_len, hidden_dim = reps_np.shape
+                reps_reshaped = reps_np.reshape(-1, hidden_dim)
+                
+                # Remove padding tokens
+                non_padding_mask = np.any(reps_reshaped != 0, axis=1)
+                reps_clean = reps_reshaped[non_padding_mask]
+                
+                layer_reps.append(reps_clean)
+        
+        return layer_reps
+    
+    def _compute_differences(self, trained_analysis: Dict, untrained_analysis: Dict) -> Dict:
+        """Compute differences between trained and untrained model analyses."""
+        differences = {}
+        
+        # Compare OT distances
+        if 'ot_distances' in trained_analysis and 'ot_distances' in untrained_analysis:
+            trained_distances = np.array(trained_analysis['ot_distances'])
+            untrained_distances = np.array(untrained_analysis['ot_distances'])
+            
+            differences['ot_distances'] = {
+                'trained': trained_distances.tolist(),
+                'untrained': untrained_distances.tolist(),
+                'difference': (trained_distances - untrained_distances).tolist(),
+                'relative_difference': ((trained_distances - untrained_distances) / (untrained_distances + 1e-8)).tolist()
+            }
+        
+        # Compare entropies
+        if 'entropies' in trained_analysis and 'entropies' in untrained_analysis:
+            trained_entropies = np.array(trained_analysis['entropies'])
+            untrained_entropies = np.array(untrained_analysis['entropies'])
+            
+            differences['entropies'] = {
+                'trained': trained_entropies.tolist(),
+                'untrained': untrained_entropies.tolist(),
+                'difference': (trained_entropies - untrained_entropies).tolist()
+            }
+        
+        # Compare geometric characterizations
+        if 'geometric_characterization' in trained_analysis and 'geometric_characterization' in untrained_analysis:
+            trained_geo = trained_analysis['geometric_characterization']
+            untrained_geo = untrained_analysis['geometric_characterization']
+            
+            differences['geometric_characterization'] = {
+                'trained': trained_geo,
+                'untrained': untrained_geo,
+                'transformation_type_comparison': {
+                    'trained': trained_geo.get('transformation_type', 'unknown'),
+                    'untrained': untrained_geo.get('transformation_type', 'unknown')
+                }
+            }
+        
+        return differences
+    
+    def cleanup(self):
+        """Clean up both models."""
+        if self.trained_extractor:
+            self.trained_extractor.cleanup()
+        if self.untrained_extractor:
+            self.untrained_extractor.cleanup()
 
 class TrainingTracker:
     """Track model training and extract activations at checkpoints."""
@@ -265,6 +443,38 @@ def load_pretrained_model(model_name: str = "gpt2", device: str = "auto"):
         tokenizer = GPT2Tokenizer.from_pretrained("gpt2-xl")
     else:
         model = AutoModel.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
+    device = "cuda" if torch.cuda.is_available() and device == "auto" else device
+    model.to(device)
+    model.eval()
+    
+    return model, tokenizer
+
+def load_untrained_model(model_name: str = "gpt2", device: str = "auto"):
+    """Load an untrained (randomly initialized) transformer model."""
+    if model_name == "gpt2":
+        config = GPT2Config.from_pretrained("gpt2")
+        model = GPT2LMHeadModel(config)
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    elif model_name == "gpt2-medium":
+        config = GPT2Config.from_pretrained("gpt2-medium")
+        model = GPT2LMHeadModel(config)
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2-medium")
+    elif model_name == "gpt2-large":
+        config = GPT2Config.from_pretrained("gpt2-large")
+        model = GPT2LMHeadModel(config)
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2-large")
+    elif model_name == "gpt2-xl":
+        config = GPT2Config.from_pretrained("gpt2-xl")
+        model = GPT2LMHeadModel(config)
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2-xl")
+    else:
+        config = AutoModel.from_pretrained(model_name).config
+        model = AutoModel.from_config(config)
         tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     if tokenizer.pad_token is None:

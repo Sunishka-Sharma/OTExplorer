@@ -11,6 +11,7 @@ This project studies how internal representations evolve across transformer laye
 3. **Compute OT Distances**: Use Sinkhorn distances to measure representation changes across layers and time
 4. **Visualize Drift**: Plot how representations compress, drift, or restructure during training
 5. **Detect Emergence**: Look for phase transitions and sudden changes in representation structure
+6. **Compare Trained vs Untrained**: Analyze geometric transformation paths between learned and random models
 
 ### Key Concepts
 
@@ -18,6 +19,7 @@ This project studies how internal representations evolve across transformer laye
 - **Representation Drift**: How internal representations change during training
 - **Phase Transitions**: Sudden qualitative changes in model behavior during training
 - **Sinkhorn Distance**: Regularized OT method for efficient computation
+- **Geometric Fingerprint**: Unique transformation patterns that distinguish trained from untrained models
 
 ## Setup
 
@@ -36,12 +38,16 @@ python main.py
 
 # Track training dynamics
 python train_and_track.py
+
+# Compare trained vs untrained models
+python trained_vs_untrained_comparison.py
 ```
 
 ## Project Structure
 
 - `main.py`: Main experiment runner with GSM8K training
 - `train_and_track.py`: Training script with checkpoint tracking
+- `trained_vs_untrained_comparison.py`: Compare geometric transformation paths
 - `transformer_utils.py`: Utilities for extracting activations
 - `ot_analysis.py`: Optimal Transport computations (Sinkhorn)
 - `visualization.py`: Advanced plotting and drift visualization
@@ -69,6 +75,7 @@ This project is fully compatible with Lambda.ai GPU instances. The setup uses:
    ```bash
    python main.py  # Quick test
    python train_and_track.py  # Full training
+   python trained_vs_untrained_comparison.py  # Model comparison
    ```
 
 ### **Recommended Lambda.ai Configurations:**
@@ -295,5 +302,34 @@ config = {
 # Manual dataset download
 python -c "from datasets import load_dataset; load_dataset('gsm8k', 'main')"
 ```
+
+## 🆕 Trained vs Untrained Model Comparison
+
+### **Key Feature: Geometric Fingerprint Analysis**
+
+This project now includes a crucial comparison between **trained and untrained models** to analyze the "fingerprint" of learned structure:
+
+#### **What This Reveals:**
+- **Trained Model**: Shows organized, structured geometric transformations
+- **Untrained Model**: Shows random, chaotic transformation patterns
+- **Comparison**: Reveals how learning creates meaningful representation structure
+
+#### **Implementation:**
+```python
+# Run comparison
+python trained_vs_untrained_comparison.py
+```
+
+#### **What You Get:**
+- **OT Distance Comparison**: Side-by-side analysis of transport costs
+- **Geometric Fingerprint**: Unique patterns that distinguish learned from random
+- **Transformation Type Analysis**: Compression vs spreading patterns
+- **Entropy Comparison**: Information organization differences
+
+#### **Research Insights:**
+- **Smoother Paths**: Trained models show smoother geometric transformations
+- **Structured Compression**: Learned models exhibit systematic information compression
+- **Emergent Organization**: Training creates coherent representation structure
+- **Performance Correlation**: Geometric properties correlate with model performance
 
 This setup provides a complete research framework that scales from quick testing to serious research, with full Lambda.ai compatibility and comprehensive parameter tuning guidelines. 
