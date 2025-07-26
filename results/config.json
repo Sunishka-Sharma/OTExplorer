@@ -1,0 +1,14 @@
+{
+  "model_name": "gpt2",
+  "task_type": "copy",
+  "num_samples": 50,
+  "max_length": 15,
+  "batch_size": 4,
+  "ot_method": "emd",
+  "normalize": true,
+  "pca_components": 30,
+  "transition_threshold": 2.0,
+  "save_results": true,
+  "save_plots": true,
+  "output_dir": "results"
+}
