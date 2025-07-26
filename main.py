@@ -1,5 +1,5 @@
 """
-Main experiment runner for Layer by Layer: Detecting Emergence via Optimal Transport.
+Main experiment runner for Tracking Representation Drift in Transformers via Optimal Transport.
 """
 
 import torch
@@ -10,13 +10,13 @@ from datetime import datetime
 from typing import List, Dict
 
 # Import our modules
-from data_utils import ToyDataset
+from data_utils import GSM8KDataset
 from transformer_utils import ActivationExtractor
 from ot_analysis import OTAnalyzer, compare_ot_vs_simple_distances
 from visualization import OTVisualizer
 
-class EmergenceExperiment:
-    """Main experiment class for detecting emergence via Optimal Transport."""
+class RepresentationDriftExperiment:
+    """Main experiment class for tracking representation drift via Optimal Transport."""
     
     def __init__(self, config: Dict = None):
         """
@@ -38,14 +38,13 @@ class EmergenceExperiment:
     def _get_default_config(self) -> Dict:
         """Get default configuration."""
         return {
-            'model_name': 'gpt2',
-            'task_type': 'copy',  # 'copy', 'parity', 'arithmetic'
-            'num_samples': 100,
-            'max_length': 20,
-            'batch_size': 8,
-            'ot_method': 'emd',  # 'emd' or 'sinkhorn'
+            'model_name': 'gpt2-medium',  # Larger model for better performance
+            'num_samples': 50,  # Number of GSM8K samples
+            'max_length': 256,  # Shorter sequences for efficiency
+            'batch_size': 4,
+            'ot_method': 'sinkhorn',  # Use Sinkhorn for efficiency
             'normalize': True,
-            'pca_components': 20,  # Reduced from 50
+            'pca_components': 50,
             'transition_threshold': 2.0,
             'save_results': True,
             'save_plots': True,
@@ -77,21 +76,22 @@ class EmergenceExperiment:
         
         print("Setup complete!")
     
-    def generate_data(self) -> List[str]:
-        """Generate toy dataset."""
-        print(f"Generating {self.config['task_type']} task data...")
+    def load_gsm8k_data(self) -> List[str]:
+        """Load GSM8K dataset and extract sample questions."""
+        print("Loading GSM8K dataset...")
         
-        dataset = ToyDataset(
-            task_type=self.config['task_type'],
+        dataset = GSM8KDataset(
+            model_name=self.config['model_name'],
             max_length=self.config['max_length']
         )
         
-        data = dataset.generate_data(self.config['num_samples'])
+        # Get sample data
+        data = dataset.get_sample_data(self.config['num_samples'])
         
         # Extract input texts for activation extraction
-        input_texts = [item[0] for item in data]
+        input_texts = [item['input_text'] for item in data]
         
-        print(f"Generated {len(input_texts)} samples")
+        print(f"Loaded {len(input_texts)} GSM8K samples")
         return input_texts
     
     def extract_activations(self, input_texts: List[str]) -> Dict[str, torch.Tensor]:
@@ -212,9 +212,10 @@ class EmergenceExperiment:
         print("="*50)
         
         print(f"Model: {self.config['model_name']}")
-        print(f"Task: {self.config['task_type']}")
+        print(f"Dataset: GSM8K")
         print(f"Number of layers: {analysis_results['num_layers']}")
         print(f"Number of samples: {self.config['num_samples']}")
+        print(f"OT Method: {self.config['ot_method']}")
         
         print(f"\nOT Distances between adjacent layers:")
         for i, dist in enumerate(analysis_results['ot_distances']):
@@ -233,15 +234,15 @@ class EmergenceExperiment:
     
     def run(self):
         """Run the complete experiment."""
-        print("Starting Layer by Layer Emergence Detection Experiment")
+        print("Starting Representation Drift Detection Experiment")
         print("="*60)
         
         try:
             # Setup
             self.setup()
             
-            # Generate data
-            input_texts = self.generate_data()
+            # Load GSM8K data
+            input_texts = self.load_gsm8k_data()
             
             # Extract activations
             activations = self.extract_activations(input_texts)
@@ -278,12 +279,11 @@ class EmergenceExperiment:
 def run_quick_experiment():
     """Run a quick experiment with default settings."""
     config = {
-        'model_name': 'gpt2',
-        'task_type': 'copy',
-        'num_samples': 50,  # Small number for quick testing
-        'max_length': 15,
-        'batch_size': 4,
-        'ot_method': 'emd',
+        'model_name': 'gpt2-medium',
+        'num_samples': 20,  # Small number for quick testing
+        'max_length': 128,  # Shorter sequences
+        'batch_size': 2,
+        'ot_method': 'sinkhorn',
         'normalize': True,
         'pca_components': 30,
         'transition_threshold': 2.0,
@@ -292,47 +292,38 @@ def run_quick_experiment():
         'output_dir': 'results'
     }
     
-    experiment = EmergenceExperiment(config)
+    experiment = RepresentationDriftExperiment(config)
     experiment.run()
     
     return experiment
 
-def run_comparison_experiment():
-    """Run experiments with different tasks and compare results."""
-    tasks = ['copy', 'parity', 'arithmetic']
-    results = {}
+def run_large_model_experiment():
+    """Run experiment with larger model."""
+    config = {
+        'model_name': 'gpt2-large',
+        'num_samples': 30,
+        'max_length': 256,
+        'batch_size': 1,  # Smaller batch size for larger model
+        'ot_method': 'sinkhorn',
+        'normalize': True,
+        'pca_components': 50,
+        'transition_threshold': 2.0,
+        'save_results': True,
+        'save_plots': True,
+        'output_dir': 'results_large_model'
+    }
     
-    for task in tasks:
-        print(f"\nRunning experiment for task: {task}")
-        print("-" * 40)
-        
-        config = {
-            'model_name': 'gpt2',
-            'task_type': task,
-            'num_samples': 30,
-            'max_length': 15,
-            'batch_size': 4,
-            'ot_method': 'emd',
-            'normalize': True,
-            'pca_components': 30,
-            'transition_threshold': 2.0,
-            'save_results': True,
-            'save_plots': True,
-            'output_dir': f'results_{task}'
-        }
-        
-        experiment = EmergenceExperiment(config)
-        experiment.run()
-        results[task] = experiment.results
+    experiment = RepresentationDriftExperiment(config)
+    experiment.run()
     
-    return results
+    return experiment
 
 if __name__ == "__main__":
-    print("Layer by Layer: Detecting Emergence via Optimal Transport")
+    print("Tracking Representation Drift in Transformers via Optimal Transport")
     print("=" * 60)
     
     # Run quick experiment
     experiment = run_quick_experiment()
     
-    # Uncomment to run comparison experiment
-    # results = run_comparison_experiment() 
+    # Uncomment to run with larger model (requires more memory)
+    # experiment = run_large_model_experiment() 

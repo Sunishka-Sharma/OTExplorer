@@ -1,38 +1,49 @@
-# Layer by Layer: Detecting Emergence via Optimal Transport
+# Tracking Representation Drift in Transformers via Optimal Transport
 
 ## Project Overview
 
-This project explores how internal representations evolve across transformer layers using Optimal Transport (OT). We track the "flow" of information through a small transformer model to detect potential emergent behaviors or phase transitions.
+This project studies how internal representations evolve across transformer layers and training epochs using Optimal Transport (OT). We track the "drift" of information through transformer models during training to detect potential emergent behaviors and phase transitions.
 
 ### What We're Doing
 
-1. **Extract Activations**: Get hidden state representations from each layer of a transformer
-2. **Compute OT Distances**: Measure how representations change between adjacent layers
-3. **Visualize Evolution**: Plot how these distances evolve across layers
-4. **Detect Emergence**: Look for sudden changes that might indicate emergent behavior
+1. **Train on GSM8K**: Use GPT-2 style transformers on mathematical reasoning dataset
+2. **Extract Activations**: Get hidden state representations from each layer at different training checkpoints
+3. **Compute OT Distances**: Use Sinkhorn distances to measure representation changes across layers and time
+4. **Visualize Drift**: Plot how representations compress, drift, or restructure during training
+5. **Detect Emergence**: Look for phase transitions and sudden changes in representation structure
 
 ### Key Concepts
 
-- **Optimal Transport**: A mathematical framework for measuring the "cost" of transforming one distribution into another
-- **Emergence**: Sudden qualitative changes in model behavior that aren't predictable from individual components
-- **Phase Transitions**: Sharp changes in representation flow that might signal learning shifts
+- **Optimal Transport**: Mathematical framework for measuring the "cost" of transforming one distribution into another
+- **Representation Drift**: How internal representations change during training
+- **Phase Transitions**: Sudden qualitative changes in model behavior during training
+- **Sinkhorn Distance**: Regularized OT method for efficient computation
 
 ## Setup
 
 ```bash
-pip install torch transformers python-ot matplotlib seaborn numpy pandas
+pip install -r requirements.txt
 ```
 
 ## Usage
 
 ```bash
+# Quick demo with pre-trained model
+python example.py
+
+# Full training experiment with GSM8K
 python main.py
+
+# Track training dynamics
+python train_and_track.py
 ```
 
 ## Project Structure
 
-- `main.py`: Main experiment runner
+- `main.py`: Main experiment runner with GSM8K training
+- `train_and_track.py`: Training script with checkpoint tracking
 - `transformer_utils.py`: Utilities for extracting activations
-- `ot_analysis.py`: Optimal Transport computations
-- `visualization.py`: Plotting and visualization functions
-- `data_utils.py`: Dataset and data processing utilities 
+- `ot_analysis.py`: Optimal Transport computations (Sinkhorn)
+- `visualization.py`: Advanced plotting and drift visualization
+- `data_utils.py`: GSM8K dataset processing
+- `example.py`: Simple demo with pre-trained models 
