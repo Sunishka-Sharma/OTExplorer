@@ -14,19 +14,21 @@ warnings.filterwarnings('ignore')
 class OTAnalyzer:
     """Analyze layer representations using Optimal Transport."""
     
-    def __init__(self, method: str = "emd", normalize: bool = True):
+    def __init__(self, method: str = "sinkhorn", normalize: bool = True, reg: float = 0.1):
         """
         Initialize OT analyzer.
         
         Args:
             method: OT method ('emd' for Earth Mover's Distance, 'sinkhorn' for Sinkhorn)
             normalize: Whether to normalize representations before computing OT
+            reg: Regularization parameter for Sinkhorn
         """
         self.method = method
         self.normalize = normalize
+        self.reg = reg
     
     def compute_ot_distance(self, X1: np.ndarray, X2: np.ndarray, 
-                          method: str = None) -> float:
+                          method: str = None, return_plan: bool = False) -> Tuple[float, Optional[np.ndarray]]:
         """
         Compute Optimal Transport distance between two sets of points.
         
@@ -34,9 +36,10 @@ class OTAnalyzer:
             X1: First set of points (n_samples, n_features)
             X2: Second set of points (n_samples, n_features)
             method: OT method to use (overrides self.method if provided)
+            return_plan: Whether to return the transport plan (T matrix)
         
         Returns:
-            OT distance
+            OT distance and optionally the transport plan
         """
         if method is None:
             method = self.method
@@ -46,24 +49,139 @@ class OTAnalyzer:
             X1 = self._normalize_representations(X1)
             X2 = self._normalize_representations(X2)
         
-        # Compute cost matrix (Euclidean distances)
-        M = euclidean_distances(X1, X2)
+        # Compute cost matrix (squared Euclidean distances as per screenshots)
+        M = euclidean_distances(X1, X2, squared=True)
         
-        # Compute OT distance
+        # Compute OT distance and plan
         if method == "emd":
             # Earth Mover's Distance
             a = np.ones(X1.shape[0]) / X1.shape[0]  # Uniform weights
             b = np.ones(X2.shape[0]) / X2.shape[0]  # Uniform weights
-            distance = ot.emd2(a, b, M)
+            if return_plan:
+                T = ot.emd(a, b, M)
+                distance = np.sum(T * M)
+                return distance, T
+            else:
+                distance = ot.emd2(a, b, M)
+                return distance, None
         elif method == "sinkhorn":
             # Sinkhorn distance (regularized OT)
             a = np.ones(X1.shape[0]) / X1.shape[0]
             b = np.ones(X2.shape[0]) / X2.shape[0]
-            distance = ot.sinkhorn2(a, b, M, reg=0.1)
+            if return_plan:
+                T = ot.sinkhorn(a, b, M, reg=self.reg)
+                distance = np.sum(T * M)
+                return distance, T
+            else:
+                distance = ot.sinkhorn2(a, b, M, reg=self.reg)
+                return distance, None
         else:
             raise ValueError(f"Unknown OT method: {method}")
+    
+    def analyze_map_sparsity(self, T: np.ndarray) -> Dict:
+        """
+        Analyze the sparsity of the transport plan (T matrix).
         
-        return distance
+        Args:
+            T: Transport plan matrix
+        
+        Returns:
+            Dictionary with sparsity metrics
+        """
+        # Calculate sparsity metrics
+        total_elements = T.size
+        non_zero_elements = np.count_nonzero(T)
+        sparsity_ratio = 1 - (non_zero_elements / total_elements)
+        
+        # Calculate entropy of the transport plan
+        T_normalized = T / np.sum(T)
+        entropy = -np.sum(T_normalized * np.log(T_normalized + 1e-8))
+        
+        # Calculate maximum value per row/column (one-to-one mapping indicator)
+        max_per_row = np.max(T, axis=1)
+        max_per_col = np.max(T, axis=0)
+        
+        # Calculate how "concentrated" the mapping is
+        concentration_score = np.mean(max_per_row) / (np.sum(T) / T.shape[0])
+        
+        return {
+            'sparsity_ratio': sparsity_ratio,
+            'entropy': entropy,
+            'concentration_score': concentration_score,
+            'non_zero_elements': non_zero_elements,
+            'total_elements': total_elements,
+            'is_sparse': sparsity_ratio > 0.8,  # Threshold for sparsity
+            'is_concentrated': concentration_score > 0.5  # Threshold for concentration
+        }
+    
+    def characterize_geometric_transformation(self, layer_distances: List[float]) -> Dict:
+        """
+        Characterize the geometric transformation based on OT distances.
+        
+        Args:
+            layer_distances: List of OT distances between adjacent layers
+        
+        Returns:
+            Dictionary with geometric characterization
+        """
+        if len(layer_distances) < 2:
+            return {}
+        
+        # Calculate trends
+        distances_array = np.array(layer_distances)
+        
+        # Check for compression (decreasing distances)
+        compression_score = 0
+        if len(distances_array) > 1:
+            # Calculate how much distances decrease
+            decreases = np.diff(distances_array)
+            compression_score = -np.sum(decreases[decreases < 0]) / len(decreases)
+        
+        # Check for spreading/drift (high or increasing distances)
+        spreading_score = np.mean(distances_array)
+        drift_trend = np.corrcoef(range(len(distances_array)), distances_array)[0, 1]
+        
+        # Identify transformation phases
+        early_layers = distances_array[:len(distances_array)//3] if len(distances_array) >= 3 else distances_array
+        middle_layers = distances_array[len(distances_array)//3:2*len(distances_array)//3] if len(distances_array) >= 3 else []
+        late_layers = distances_array[2*len(distances_array)//3:] if len(distances_array) >= 3 else []
+        
+        characterization = {
+            'compression_score': compression_score,
+            'spreading_score': spreading_score,
+            'drift_trend': drift_trend,
+            'mean_distance': np.mean(distances_array),
+            'std_distance': np.std(distances_array),
+            'max_distance': np.max(distances_array),
+            'min_distance': np.min(distances_array),
+            'early_layer_mean': np.mean(early_layers) if len(early_layers) > 0 else 0,
+            'middle_layer_mean': np.mean(middle_layers) if len(middle_layers) > 0 else 0,
+            'late_layer_mean': np.mean(late_layers) if len(late_layers) > 0 else 0,
+            'is_compressing': compression_score > 0.1,
+            'is_spreading': spreading_score > np.median(distances_array),
+            'transformation_type': self._classify_transformation(distances_array)
+        }
+        
+        return characterization
+    
+    def _classify_transformation(self, distances: np.ndarray) -> str:
+        """Classify the type of geometric transformation."""
+        if len(distances) < 2:
+            return "insufficient_data"
+        
+        # Calculate trends
+        early = distances[:len(distances)//3] if len(distances) >= 3 else distances
+        late = distances[2*len(distances)//3:] if len(distances) >= 3 else distances
+        
+        early_mean = np.mean(early)
+        late_mean = np.mean(late)
+        
+        if late_mean < early_mean * 0.7:
+            return "compression"
+        elif late_mean > early_mean * 1.3:
+            return "spreading"
+        else:
+            return "stable"
     
     def _normalize_representations(self, X: np.ndarray) -> np.ndarray:
         """Normalize representations to unit norm."""
@@ -71,17 +189,20 @@ class OTAnalyzer:
         norms[norms == 0] = 1  # Avoid division by zero
         return X / norms
     
-    def compute_layer_distances(self, layer_representations: List[np.ndarray]) -> List[float]:
+    def compute_layer_distances(self, layer_representations: List[np.ndarray], 
+                              return_plans: bool = False) -> Tuple[List[float], Optional[List[np.ndarray]]]:
         """
         Compute OT distances between adjacent layers.
         
         Args:
             layer_representations: List of layer representations, each of shape (n_samples, n_features)
+            return_plans: Whether to return transport plans
         
         Returns:
-            List of OT distances between adjacent layers
+            List of OT distances and optionally transport plans
         """
         distances = []
+        plans = [] if return_plans else None
         
         for i in range(len(layer_representations) - 1):
             X1 = layer_representations[i]
@@ -93,10 +214,15 @@ class OTAnalyzer:
                 X1 = X1[indices]
                 X2 = X2[indices]
             
-            distance = self.compute_ot_distance(X1, X2)
-            distances.append(distance)
+            if return_plans:
+                distance, plan = self.compute_ot_distance(X1, X2, return_plan=True)
+                distances.append(distance)
+                plans.append(plan)
+            else:
+                distance, _ = self.compute_ot_distance(X1, X2)
+                distances.append(distance)
         
-        return distances
+        return distances, plans
     
     def detect_phase_transitions(self, distances: List[float], 
                                threshold: float = 2.0) -> List[int]:
@@ -155,7 +281,8 @@ class OTAnalyzer:
                 'mean_activation': np.mean(reps),
                 'std_activation': np.std(reps),
                 'sparsity': np.mean(reps == 0),  # Fraction of zero activations
-                'rank': np.linalg.matrix_rank(reps)
+                'rank': np.linalg.matrix_rank(reps),
+                'condition_number': np.linalg.cond(reps)
             }
             stats[f'layer_{i}'] = layer_stats
         
@@ -227,11 +354,20 @@ class OTAnalyzer:
         # Reduce dimensionality for computational efficiency
         reduced_reps = self.reduce_dimensionality(layer_representations)
         
-        # Compute OT distances
-        distances = self.compute_layer_distances(reduced_reps)
+        # Compute OT distances and plans
+        distances, plans = self.compute_layer_distances(reduced_reps, return_plans=True)
+        
+        # Analyze map sparsity for each layer pair
+        sparsity_analysis = {}
+        if plans:
+            for i, plan in enumerate(plans):
+                sparsity_analysis[f'layer_{i}_to_{i+1}'] = self.analyze_map_sparsity(plan)
         
         # Detect phase transitions
         transitions = self.detect_phase_transitions(distances)
+        
+        # Characterize geometric transformation
+        geometric_characterization = self.characterize_geometric_transformation(distances)
         
         # Compute statistics
         stats = self.compute_representation_statistics(layer_representations)
@@ -244,7 +380,9 @@ class OTAnalyzer:
             'phase_transitions': transitions,
             'statistics': stats,
             'entropies': entropies,
-            'num_layers': len(layer_representations)
+            'num_layers': len(layer_representations),
+            'sparsity_analysis': sparsity_analysis,
+            'geometric_characterization': geometric_characterization
         }
 
 def compute_simple_distance(X1: np.ndarray, X2: np.ndarray, 
@@ -285,7 +423,7 @@ def compare_ot_vs_simple_distances(layer_representations: List[np.ndarray]) -> D
     reduced_reps = ot_analyzer.reduce_dimensionality(layer_representations)
     
     # Compute OT distances
-    ot_distances = ot_analyzer.compute_layer_distances(reduced_reps)
+    ot_distances = ot_analyzer.compute_layer_distances(reduced_reps)[0]
     
     # Compute simple distances
     simple_distances = {}
