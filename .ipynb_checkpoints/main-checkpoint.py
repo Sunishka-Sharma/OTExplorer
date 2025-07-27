@@ -300,9 +300,9 @@ def run_quick_experiment():
 def run_large_model_experiment():
     """Run experiment with larger model."""
     config = {
-        'model_name': 'gpt2-large',
-        'num_samples': 2000,
-        'max_length': 512,
+        'model_name': 'gpt2-medium',
+        'num_samples': 500,
+        'max_length': 256,
         'batch_size': 4,  # Smaller batch size for larger model
         'ot_method': 'sinkhorn',
         'normalize': True,

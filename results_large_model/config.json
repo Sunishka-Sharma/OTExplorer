@@ -1,0 +1,13 @@
+{
+  "model_name": "gpt2-medium",
+  "num_samples": 500,
+  "max_length": 256,
+  "batch_size": 4,
+  "ot_method": "sinkhorn",
+  "normalize": true,
+  "pca_components": 200,
+  "transition_threshold": 2.0,
+  "save_results": true,
+  "save_plots": true,
+  "output_dir": "results_large_model"
+}
