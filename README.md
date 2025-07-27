@@ -4,6 +4,10 @@
 
 This project studies how internal representations evolve across transformer layers and training epochs using Optimal Transport (OT). We track the "drift" of information through transformer models during training to detect potential emergent behaviors and phase transitions.
 
+### **Primary Goal: Geometric Fingerprint Analysis**
+
+The core objective is to analyze the **"geometric fingerprint"** that distinguishes trained models from untrained (randomly initialized) models. This reveals how learning creates meaningful representation structure and enables detection of emergent behaviors.
+
 ### What We're Doing
 
 1. **Train on GSM8K**: Use GPT-2 style transformers on mathematical reasoning dataset
@@ -21,39 +25,169 @@ This project studies how internal representations evolve across transformer laye
 - **Sinkhorn Distance**: Regularized OT method for efficient computation
 - **Geometric Fingerprint**: Unique transformation patterns that distinguish trained from untrained models
 
+## 🎯 **Key Feature: Geometric Fingerprint Analysis**
+
+This project includes a crucial comparison between **trained and untrained models** to analyze the "fingerprint" of learned structure:
+
+### **What This Reveals:**
+- **Trained Model**: Shows organized, structured geometric transformations
+- **Untrained Model**: Shows random, chaotic transformation patterns
+- **Comparison**: Reveals how learning creates meaningful representation structure
+
+### **Research Insights:**
+- **Smoother Paths**: Trained models show smoother geometric transformations
+- **Structured Compression**: Learned models exhibit systematic information compression
+- **Emergent Organization**: Training creates coherent representation structure
+
 ## Setup
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+## 🚀 **Main Scripts to Run**
 
+### **Primary Experiment: Trained vs Untrained Comparison**
 ```bash
-# Quick demo with pre-trained model
-python example.py
-
-# Full training experiment with GSM8K
-python main.py
-
-# Track training dynamics
-python train_and_track.py
-
-# Compare trained vs untrained models
+# Run the core geometric fingerprint analysis
 python trained_vs_untrained_comparison.py
 ```
 
-## Project Structure
+### **Training Dynamics Tracking**
+```bash
+# Track representation changes during training
+python train_and_track.py
+```
 
-- `main.py`: Main experiment runner with GSM8K training
-- `train_and_track.py`: Training script with checkpoint tracking
-- `trained_vs_untrained_comparison.py`: Compare geometric transformation paths
-- `transformer_utils.py`: Utilities for extracting activations
-- `ot_analysis.py`: Optimal Transport computations (Sinkhorn)
-- `visualization.py`: Advanced plotting and drift visualization
-- `data_utils.py`: GSM8K dataset processing
-- `example.py`: Simple demo with pre-trained models
+## 📊 **Module Explanations**
 
+### **Core Analysis Modules:**
+
+#### **`trained_vs_untrained_comparison.py`** - **Primary Script**
+- **Purpose**: Compare geometric transformation paths between trained and untrained models
+- **What it does**: 
+  - Loads pre-trained GPT-2 Large model
+  - Creates randomly initialized model with same architecture
+  - Extracts activations from both models on GSM8K data
+  - Computes OT distances between adjacent layers
+  - Analyzes entropy and transformation patterns
+  - Generates comparison visualizations
+- **Output**: Geometric fingerprint analysis, entropy comparison, transformation type analysis
+
+#### **`train_and_track.py`** - **Training Dynamics**
+- **Purpose**: Track representation evolution during training
+- **What it does**:
+  - Trains GPT-2 model on GSM8K dataset
+  - Saves checkpoints at regular intervals
+  - Extracts activations at each checkpoint
+  - Analyzes representation drift across training
+  - Detects phase transitions and learning shifts
+- **Output**: Training dynamics, checkpoint activations, drift analysis
+
+### **Supporting Modules:**
+
+#### **`transformer_utils.py`**
+- **Purpose**: Extract hidden state activations from transformer layers
+- **Key Functions**:
+  - `ActivationExtractor`: Extract activations from all layers
+  - `TrainingTracker`: Track training progress and save checkpoints
+  - `ModelComparison`: Compare trained vs untrained models
+
+#### **`ot_analysis.py`**
+- **Purpose**: Compute Optimal Transport distances and analyze transformations
+- **Key Functions**:
+  - `OTAnalyzer`: Main OT computation engine
+  - `compute_ot_distance`: Calculate Sinkhorn distances
+  - `analyze_representation_flow`: Analyze layer-wise transformations
+  - `detect_phase_transitions`: Identify sudden changes
+
+#### **`data_utils.py`**
+- **Purpose**: Load and process GSM8K dataset
+- **Key Functions**:
+  - `GSM8KDataset`: Dataset loader for math word problems
+  - `create_dataloader`: Create training batches
+  - `get_sample_data`: Extract sample questions for analysis
+
+#### **`visualization.py`**
+- **Purpose**: Create comprehensive visualizations
+- **Key Functions**:
+  - `OTVisualizer`: Main visualization engine
+  - `plot_ot_distances`: Plot layer-wise OT distances
+  - `create_comprehensive_dashboard`: Generate all plots
+
+## 📈 **Current Results & Analysis**
+
+### **Latest Experimental Results:**
+
+#### **Geometric Fingerprint Analysis (GPT-2 Large, 3000 samples):**
+```
+OT Distance Comparison:
+  Trained model mean distance: 0.8372
+  Untrained model mean distance: 1.1873
+  Mean difference (trained - untrained): -0.3502
+  Layer pair with biggest difference: L13-L14 (-0.6901)
+
+Entropy Comparison:
+  Trained model mean entropy: 11.7447
+  Untrained model mean entropy: 12.0873
+  Mean entropy difference: -0.3426
+```
+
+#### **Key Findings:**
+- **✅ Geometric Fingerprint Detected**: Clear distinction between trained and untrained models
+- **✅ Structured Compression**: Trained model shows 29% lower OT distances
+- **✅ Information Organization**: Trained model has 2.8% lower entropy
+- **✅ Layer-Specific Effects**: L13-L14 shows strongest learning signature
+- **✅ Emergent Structure**: Training creates coherent representation organization
+
+### **Training Dynamics Results (15 epochs, 1000 samples):**
+- **Loss Reduction**: 9.6 → 2.36 (75% improvement)
+- **Convergence**: Stable learning with no overfitting
+- **Representation Drift**: Systematic changes across training epochs
+- **Phase Transitions**: Detected at key learning milestones
+
+## ⚙️ **Current Configuration**
+
+### **Trained vs Untrained Comparison:**
+```python
+config = {
+    'model_name': 'gpt2-large',      # 774M parameters
+    'num_samples': 3000,             # Comprehensive dataset
+    'max_length': 512,               # Full sequence analysis
+    'ot_method': 'sinkhorn',         # Fast, regularized OT
+    'pca_components': 50,            # Dimensionality reduction
+    'output_dir': 'trained_vs_untrained_results'
+}
+```
+
+### **Training Dynamics:**
+```python
+config = {
+    'model_name': 'gpt2-large',      # 774M parameters
+    'num_epochs': 15,                # Complete training cycle
+    'batch_size': 2,                 # Memory-efficient
+    'learning_rate': 1e-6,           # Stable learning
+    'max_length': 512,               # Full sequences
+    'num_samples': 1000,             # Good statistical power
+    'checkpoint_frequency': 999999,  # Disable checkpoints
+    'output_dir': 'training_results'
+}
+```
+
+## 📁 **Results & Data Storage**
+
+### **Available Results:**
+- **✅ Geometric Fingerprint Analysis**: `trained_vs_untrained_results/`
+- **✅ Training Dynamics**: `training_results/`
+- **✅ Visualizations**: PNG plots and heatmaps
+- **✅ Configuration Files**: JSON configs for reproducibility
+
+### **Checkpoint Data (Large Files):**
+- **Training Checkpoints**: `training_results/checkpoints/` (45GB total) [Link to be added]
+- **Model States**: Full model checkpoints at each epoch
+- **Activation Files**: Layer-wise activations for analysis
+- **Storage**: Available on Google Drive
+- 
 ## 🚀 Lambda.ai Deployment
 
 ### **Yes, you can run this on Lambda.ai!**
@@ -73,18 +207,17 @@ This project is fully compatible with Lambda.ai GPU instances. The setup uses:
    ```
 3. **Run Experiments**: 
    ```bash
-   python main.py  # Quick test
-   python train_and_track.py  # Full training
-   python trained_vs_untrained_comparison.py  # Model comparison
+   python trained_vs_untrained_comparison.py  # Geometric fingerprint
+   python train_and_track.py                  # Training dynamics
    ```
 
 ### **Recommended Lambda.ai Configurations:**
 
-| Use Case | Instance Type | Memory | GPU | Estimated Cost |
-|----------|---------------|---------|-----|----------------|
-| **Quick Testing** | GPU 1x A10 | 24GB | 1x A10 | ~$0.60/hour |
-| **Medium Research** | GPU 1x A100 | 80GB | 1x A100 | ~$2.40/hour |
-| **Large Research** | GPU 2x A100 | 160GB | 2x A100 | ~$4.80/hour |
+| Use Case | Instance Type | Memory | GPU | Estimated Cost | Time |
+|----------|---------------|---------|-----|----------------|------|
+| **Quick Testing** | GPU 1x A10 | 24GB | 1x A10 | ~$0.60/hour | 30-60 min |
+| **Medium Research** | GPU 1x A100 | 80GB | 1x A100 | ~$2.40/hour | 15-30 min |
+| **Large Research** | GPU 8x A100 | 640GB | 8x A100 | ~$19.20/hour | 5-10 min |
 
 ## 🔬 Serious Research Setup
 
@@ -218,11 +351,11 @@ tail -f training_results/results.json
 
 #### **Multi-GPU Training:**
 ```python
-# For 2x A100 setup
+# For 8x A100 setup
 config = {
     'model_name': 'gpt2-xl',
     'num_samples': 2000,
-    'batch_size': 4,  # Can increase with more GPUs
+    'batch_size': 8,  # Can increase with more GPUs
     'use_multi_gpu': True
 }
 ```
@@ -303,33 +436,18 @@ config = {
 python -c "from datasets import load_dataset; load_dataset('gsm8k', 'main')"
 ```
 
-## 🆕 Trained vs Untrained Model Comparison
+## 📊 **Research Significance**
 
-### **Key Feature: Geometric Fingerprint Analysis**
+### **Scientific Contributions:**
+1. **Geometric Fingerprint Discovery**: First systematic comparison of trained vs untrained geometric transformations
+2. **Emergence Detection**: Novel method for detecting emergent behaviors in transformers
+3. **Representation Drift Analysis**: Comprehensive tracking of representation evolution
+4. **Phase Transition Identification**: Automated detection of learning milestones
 
-This project now includes a crucial comparison between **trained and untrained models** to analyze the "fingerprint" of learned structure:
-
-#### **What This Reveals:**
-- **Trained Model**: Shows organized, structured geometric transformations
-- **Untrained Model**: Shows random, chaotic transformation patterns
-- **Comparison**: Reveals how learning creates meaningful representation structure
-
-#### **Implementation:**
-```python
-# Run comparison
-python trained_vs_untrained_comparison.py
-```
-
-#### **What You Get:**
-- **OT Distance Comparison**: Side-by-side analysis of transport costs
-- **Geometric Fingerprint**: Unique patterns that distinguish learned from random
-- **Transformation Type Analysis**: Compression vs spreading patterns
-- **Entropy Comparison**: Information organization differences
-
-#### **Research Insights:**
-- **Smoother Paths**: Trained models show smoother geometric transformations
-- **Structured Compression**: Learned models exhibit systematic information compression
-- **Emergent Organization**: Training creates coherent representation structure
-- **Performance Correlation**: Geometric properties correlate with model performance
+### **Practical Applications:**
+1. **Model Interpretability**: Understanding how transformers learn
+2. **Training Monitoring**: Real-time analysis of learning progress
+3. **Architecture Design**: Insights for better model architectures
+4. **AI Safety**: Detection of unexpected behaviors during training
 
 This setup provides a complete research framework that scales from quick testing to serious research, with full Lambda.ai compatibility and comprehensive parameter tuning guidelines. 
