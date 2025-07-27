@@ -144,10 +144,21 @@ class GSM8KDataset:
                 else:
                     padded_ids = item['full_ids'][0]
                 
+                # Create attention mask
+                attention_mask = (padded_ids != 0).long()
+                
+                # Create labels for language modeling (shifted by 1)
+                labels = padded_ids.clone()
+                labels[:-1] = padded_ids[1:]  # Shift labels
+                labels[-1] = -100  # Ignore the last token in loss computation
+                
+                # Set padding tokens to -100 in labels
+                labels[padded_ids == 0] = -100
+                
                 padded_batch.append({
                     'input_ids': padded_ids.unsqueeze(0),
-                    'attention_mask': (padded_ids != 0).unsqueeze(0),
-                    'labels': padded_ids.unsqueeze(0),
+                    'attention_mask': attention_mask.unsqueeze(0),
+                    'labels': labels.unsqueeze(0),
                     'input_text': item['input_text'],
                     'output_text': item['output_text'],
                     'question': item['question'],

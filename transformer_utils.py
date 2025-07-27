@@ -382,12 +382,86 @@ class TrainingTracker:
             'loss': loss,
         }, checkpoint_path)
         
-        # Extract activations for sample texts
-        extractor = ActivationExtractor(model_name="custom", device=self.device)
-        extractor.model = self.model
-        extractor.tokenizer = self.tokenizer
-        extractor._register_hooks()
+        # Extract activations for sample texts using the existing model
+        # Create a simple activation extractor that uses the existing model
+        class SimpleActivationExtractor:
+            def __init__(self, model, tokenizer, device):
+                self.model = model
+                self.tokenizer = tokenizer
+                self.device = device
+                self.hooks = []
+                self.activations = {}
+                self._register_hooks()
+            
+            def _register_hooks(self):
+                """Register hooks to capture activations from each layer."""
+                self.activations = {}
+                self.hooks = []
+                
+                # Register hooks for each transformer layer
+                for i, layer in enumerate(self.model.transformer.h):
+                    def make_hook(layer_idx):
+                        def hook(module, input, output):
+                            if isinstance(output, tuple):
+                                hidden_states = output[0]
+                            else:
+                                hidden_states = output
+                            self.activations[f"layer_{layer_idx}"] = hidden_states.detach().cpu()
+                        return hook
+                    
+                    hook = layer.register_forward_hook(make_hook(i))
+                    self.hooks.append(hook)
+            
+            def extract_activations_batch(self, input_texts: List[str]) -> Dict[str, torch.Tensor]:
+                """Extract activations for a batch of input texts."""
+                all_activations = {}
+                
+                for text in tqdm(input_texts, desc="Extracting activations"):
+                    # Clear previous activations
+                    self.activations = {}
+                    
+                    # Tokenize input
+                    inputs = self.tokenizer(text, return_tensors='pt', padding=True, truncation=True)
+                    inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                    
+                    # Forward pass (this will trigger the hooks)
+                    with torch.no_grad():
+                        outputs = self.model(**inputs)
+                    
+                    # Concatenate activations across batch
+                    for layer_name, layer_acts in self.activations.items():
+                        if layer_name not in all_activations:
+                            all_activations[layer_name] = []
+                        all_activations[layer_name].append(layer_acts)
+                
+                # Stack activations from all samples
+                for layer_name in all_activations:
+                    # Pad sequences to same length before stacking
+                    max_seq_len = max(acts.shape[1] for acts in all_activations[layer_name])
+                    padded_activations = []
+                    
+                    for acts in all_activations[layer_name]:
+                        batch_size, seq_len, hidden_dim = acts.shape
+                        if seq_len < max_seq_len:
+                            # Pad with zeros
+                            padding = torch.zeros(batch_size, max_seq_len - seq_len, hidden_dim)
+                            acts_padded = torch.cat([acts, padding], dim=1)
+                        else:
+                            acts_padded = acts
+                        padded_activations.append(acts_padded)
+                    
+                    all_activations[layer_name] = torch.cat(padded_activations, dim=0)
+                
+                return all_activations
+            
+            def cleanup(self):
+                """Remove hooks and clean up."""
+                for hook in self.hooks:
+                    hook.remove()
+                self.hooks = []
         
+        # Use the simple extractor
+        extractor = SimpleActivationExtractor(self.model, self.tokenizer, self.device)
         activations = extractor.extract_activations_batch(sample_texts)
         
         # Save activations

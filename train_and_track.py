@@ -37,7 +37,7 @@ class GSM8KTrainer:
     def _get_default_config(self) -> dict:
         """Get default training configuration."""
         return {
-            'model_name': 'gpt2-medium',  # Larger model for better performance
+            'model_name': 'gpt2',  # Use base GPT2 to avoid NaN issues
             'num_epochs': 3,
             'batch_size': 2,  # Smaller batch size for larger models
             'learning_rate': 5e-5,
@@ -154,10 +154,20 @@ class GSM8KTrainer:
             )
             
             loss = outputs.loss
+            
+            # Check for NaN loss
+            if torch.isnan(loss):
+                print(f"Warning: NaN loss detected at step {step}, skipping...")
+                continue
+                
             total_loss += loss.item()
             
             # Backward pass
             loss.backward()
+            
+            # Gradient clipping to prevent explosion
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            
             optimizer.step()
             
             # Update progress bar
@@ -218,18 +228,24 @@ class GSM8KTrainer:
             layer_distances = []
             for layer_idx in range(len(layer_reps1)):
                 if layer_idx < len(layer_reps2):
-                    distance = self.ot_analyzer.compute_ot_distance(
+                    result = self.ot_analyzer.compute_ot_distance(
                         layer_reps1[layer_idx], 
                         layer_reps2[layer_idx]
                     )
-                    layer_distances.append(distance)
+                    # compute_ot_distance returns (distance, plan), we only need distance
+                    distance = result[0] if result is not None else None
+                    if distance is not None:  # Only add valid distances
+                        layer_distances.append(distance)
             
-            drift_results[f"{checkpoint1}_to_{checkpoint2}"] = {
-                'layer_distances': layer_distances,
-                'mean_drift': np.mean(layer_distances),
-                'max_drift': np.max(layer_distances),
-                'drift_std': np.std(layer_distances)
-            }
+            if layer_distances:  # Only compute statistics if we have valid distances
+                drift_results[f"{checkpoint1}_to_{checkpoint2}"] = {
+                    'layer_distances': layer_distances,
+                    'mean_drift': np.mean(layer_distances),
+                    'max_drift': np.max(layer_distances),
+                    'drift_std': np.std(layer_distances)
+                }
+            else:
+                print(f"Warning: No valid OT distances for {checkpoint1} → {checkpoint2}")
         
         return drift_results
     
@@ -383,14 +399,21 @@ class GSM8KTrainer:
 def main():
     """Main training function."""
     config = {
-        'model_name': 'gpt2-medium',
+        'model_name': 'gpt2',  # Use base GPT2 to avoid NaN issues
         'num_epochs': 2,  # Start with fewer epochs for testing
         'batch_size': 1,  # Small batch size for memory constraints
-        'learning_rate': 5e-5,
-        'max_length': 256,  # Shorter sequences for faster training
-        'num_samples': 50,  # Start with fewer samples
-        'checkpoint_frequency': 10,  # More frequent checkpoints
-        'output_dir': 'training_results'
+        'learning_rate': 1e-6,  # Much lower learning rate to prevent NaN
+        'max_length': 128,  # Shorter sequences for faster training
+        'num_samples': 20,  # Start with fewer samples
+        'checkpoint_frequency': 5,  # More frequent checkpoints
+        'sample_texts': [
+            "Question: If there are 15 trees in the grove, and the grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today?\nAnswer:",
+            "Question: Leah had 32 chocolates and her sister had 42. If they ate 35, how many pieces do they have left in total?\nAnswer:",
+            "Question: Sam bought a dozen boxes of cookies, with 10 cookies in each box. If 10 of the cookies were eaten, how many cookies are left?\nAnswer:"
+        ],
+        'output_dir': 'training_results',
+        'save_plots': True,
+        'use_wandb': False
     }
     
     trainer = GSM8KTrainer(config)
