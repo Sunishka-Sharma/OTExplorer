@@ -1,0 +1,8 @@
+{
+  "model_name": "gpt2-large",
+  "num_samples": 3000,
+  "max_length": 512,
+  "output_dir": "trained_vs_untrained_results",
+  "save_plots": true,
+  "save_results": true
+}
